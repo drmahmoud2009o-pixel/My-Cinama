@@ -3,115 +3,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سينما المزامنة والبث المباشر</title>
+    <title>غرفة السينما المطورة</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #0b0c10;
-            color: #c5c6c7;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        h1 { color: #66fcf1; margin-bottom: 10px; }
-        .setup-box {
-            background: #1f2833;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            text-align: center;
-            width: 100%;
-            max-width: 600px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        }
-        input, button {
-            padding: 10px;
-            margin: 5px;
-            border-radius: 5px;
-            border: none;
-            font-size: 16px;
-        }
-        input { width: 60%; background: #2f3e46; color: #fff; text-align: center; }
-        button { background-color: #45f3ff; color: #0b0c10; font-weight: bold; cursor: pointer; }
-        button:hover { background-color: #1fbcda; }
-        .container {
-            display: flex;
-            flex-direction: row;
-            gap: 20px;
-            max-width: 1300px;
-            width: 100%;
-        }
-        .video-section {
-            flex: 3;
-            background: #000;
-            border-radius: 8px;
-            overflow: hidden;
-            position: relative;
-        }
-        video#moviePlayer {
-            width: 100%;
-            display: block;
-            aspect-ratio: 16/9;
-        }
-        .call-section {
-            flex: 1;
-            background: #1f2833;
-            padding: 15px;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        }
-        .video-grid {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .video-box {
-            width: 100%;
-            background: #000;
-            border-radius: 6px;
-            aspect-ratio: 4/3;
-            object-fit: cover;
-        }
-        @media (max-width: 768px) {
-            .container { flex-direction: column; }
-        }
+        :root { --main-bg: #0b0c10; --box-bg: #1f2833; --accent: #66fcf1; --text: #c5c6c7; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--main-bg); color: var(--text); margin: 0; padding: 10px; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; background: var(--box-bg); padding: 10px 20px; border-radius: 10px; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+        .header input, .header button { padding: 8px; border-radius: 5px; border: none; }
+        button { background: var(--accent); color: #000; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { opacity: 0.8; }
+
+        .main-layout { display: flex; flex: 1; gap: 10px; overflow: hidden; }
+        
+        /* قسم الفيديو */
+        .video-container { flex: 3; background: #000; border-radius: 10px; position: relative; display: flex; flex-direction: column; justify-content: center; }
+        video#moviePlayer { width: 100%; max-height: 80vh; outline: none; }
+        .file-selector { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 10; background: rgba(31, 40, 51, 0.9); padding: 30px; border-radius: 15px; border: 2px dashed var(--accent); }
+
+        /* الجانب (شات ومكالمة) */
+        .sidebar { flex: 1; display: flex; flex-direction: column; gap: 10px; max-width: 350px; }
+        .call-box { background: var(--box-bg); padding: 10px; border-radius: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        video.cam { width: 100%; background: #000; border-radius: 5px; aspect-ratio: 1; object-fit: cover; }
+        
+        .chat-box { flex: 1; background: var(--box-bg); border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; }
+        #chat-messages { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; font-size: 14px; }
+        .msg { padding: 5px 10px; border-radius: 5px; background: #2f3e46; width: fit-content; max-width: 80%; }
+        .msg.me { align-self: flex-end; background: var(--accent); color: #000; }
+        .chat-input { display: flex; padding: 5px; gap: 5px; background: #000; }
+        .chat-input input { flex: 1; background: #121212; color: #fff; border: 1px solid #333; padding: 8px; border-radius: 5px; }
+
+        .controls-row { display: flex; gap: 5px; justify-content: center; margin-top: 5px; }
+        .call-btn { font-size: 12px; padding: 5px; }
     </style>
 </head>
 <body>
 
-    <h1>غرفة المشاهدة المشتركة (2K)</h1>
-
-    <div class="setup-box">
-        <p>معرّف الجلسة الخاص بك: <strong id="my-id" style="color:#45f3ff;">جاري التوليد...</strong></p>
-        <input type="text" id="peer-id-input" placeholder="أدخل معرّف الطرف الآخر هنا">
-        <button id="connect-btn">اتصال ومزامنة</button>
-        <button id="start-call-btn" style="background-color: #ff4757; color: white;">بدء مكالمة فيديو</button>
+    <div class="header">
+        <div>ID الخاص بك: <strong id="my-id" style="color: var(--accent);">جاري التحميل...</strong></div>
+        <div>
+            <input type="text" id="peer-id-input" placeholder="ادخل ID صديقك">
+            <button id="connect-btn">اتصال</button>
+        </div>
     </div>
 
-    <div class="container">
-        <div class="video-section">
-            <video id="moviePlayer" controls controlsList="nodownload">
-                <source src="https://docs.google.com/uc?export=download&id=1FogQVZqujpP7c4sKd6A0FoZZXp2vkzDA" type="video/mp4">
-                متصفحك لا يدعم تشغيل هذا الفيديو أو الرابط يحتاج لصلاحية عامة.
-            </video>
+    <div class="main-layout">
+        <div class="video-container">
+            <div id="file-overlay" class="file-selector">
+                <h3>🎬 اختار الفيلم من جهازك</h3>
+                <p>يجب أن يختار صديقك "نفس الملف" تماماً</p>
+                <input type="file" id="video-upload" accept="video/*">
+            </div>
+            <video id="moviePlayer" controls></video>
         </div>
 
-        <div class="call-section">
-            <h3>البث المرئي والصوتي</h3>
-            <div class="video-grid">
-                <div><label>كاميرتك:</label><video id="localVideo" class="video-box" autoplay muted playsinline></video></div>
-                <div><label>الطرف الآخر:</label><video id="remoteVideo" class="video-box" autoplay playsinline></video></div>
+        <div class="sidebar">
+            <div class="call-box">
+                <div class="video-grid">
+                    <video id="localCam" class="cam" autoplay muted playsinline></video>
+                    <video id="remoteCam" class="cam" autoplay playsinline></video>
+                </div>
+                <div class="controls-row">
+                    <button class="call-btn" onclick="startCall(true)">فيديو + صوت</button>
+                    <button class="call-btn" onclick="startCall(false)">صوت فقط</button>
+                    <button class="call-btn" onclick="stopCall()" style="background: #ff4757;">إغلاق</button>
+                </div>
+            </div>
+
+            <div class="chat-box">
+                <div id="chat-messages"></div>
+                <div class="chat-input">
+                    <input type="text" id="chat-input-text" placeholder="اكتب رسالة...">
+                    <button id="send-chat">إرسال</button>
+                </div>
             </div>
         </div>
     </div>
+
+    <script>
+        const moviePlayer = document.getElementById('moviePlayer');
+        const videoUpload = document.getElementById('video-upload');
+        const fileOverlay = document.getElementById('file-overlay');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInputText = document.getElementById('chat-input-text');
+        
+        let peer = new Peer();
+        let conn = null;
+        let localStream = null;
+        let isSyncing = false;
+        let lastTime = 0;
+
+        // 1. اختيار الفيلم محلياً
+        videoUpload.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                moviePlayer.src = url;
+                fileOverlay.style.display = 'none';
+                addMessage("نظام", "تم تحميل الفيلم محلياً بنجاح.");
+            }
+        });
+
+        peer.on('open', id => document.getElementById('my-id').innerText = id);
+
+        // 2. معالجة الاتصال
+        document.getElementById('connect-btn').onclick = () => {
+            conn = peer.connect(document.getElementById('peer-id-input').value);
+            setupConnection();
+        };
+
+        peer.on('connection', c => {
+            conn = c;
+            setupConnection();
+        });
+
+        function setupConnection() {
+            alert("تم الاتصال بنجاح!");
+            conn.on('data', data => handleData(data));
+        }
+
+        // 3. المزامنة والتحكم
+        moviePlayer.onplay = () => { if(!isSyncing) conn?.send({type:'PLAY'}); };
+        moviePlayer.onpause = () => { if(!isSyncing) conn?.send({type:'PAUSE'}); };
+        
+        moviePlayer.onseeking = () => {
+            if(!isSyncing) {
+                const targetTime = moviePlayer.currentTime;
+                moviePlayer.currentTime = lastTime; // ارجاع مؤقت
+                conn?.send({type:'REQ_SEEK', time: targetTime});
+            }
+        };
+
+        moviePlayer.ontimeupdate = () => {
+            if(!isSyncing) lastTime = moviePlayer.currentTime;
+        };
+
+        function handleData(data) {
+            isSyncing = true;
+            if(data.type === 'PLAY') moviePlayer.play();
+            if(data.type === 'PAUSE') moviePlayer.pause();
+            if(data.type === 'CHAT') addMessage("صديقك", data.msg);
+            if(data.type === 'REQ_SEEK') {
+                if(confirm("صديقك يريد تغيير الوقت، هل توافق؟")) {
+                    moviePlayer.currentTime = data.time;
+                    conn.send({type:'APPROVE_SEEK', time: data.time});
+                }
+            }
+            if(data.type === 'APPROVE_SEEK') moviePlayer.currentTime = data.time;
+            setTimeout(() => isSyncing = false, 500);
+        }
+
+        // 4. المكالمات (اختياري)
+        async function startCall(video) {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({video: video, audio: true});
+                document.getElementById('localCam').srcObject = localStream;
+                const call = peer.call(conn.peer, localStream);
+                call.on('stream', remoteStream => document.getElementById('remoteCam').srcObject = remoteStream);
+            } catch(e) { alert("تأكد من إذن الكاميرا/الصوت"); }
+        }
+
+        peer.on('call', async call => {
+            if(confirm("صديقك يريد بدء مكالمة، هل تقبل؟")) {
+                localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+                document.getElementById('localCam').srcObject = localStream;
+                call.answer(localStream);
+                call.on('stream', remoteStream => document.getElementById('remoteCam').srcObject = remoteStream);
+            }
+        });
+
+        function stopCall() {
+            localStream?.getTracks().forEach(t => t.stop());
+            document.getElementById('localCam').srcObject = null;
+            document.getElementById('remoteCam').srcObject = null;
+        }
+
+        // 5. الشات
+        document.getElementById('send-chat').onclick = sendMsg;
+        chatInputText.onkeypress = (e) => { if(e.key === 'Enter') sendMsg(); };
+
+        function sendMsg() {
+            const msg = chatInputText.value;
+            if(!msg || !conn) return;
+            conn.send({type:'CHAT', msg: msg});
+            addMessage("أنا", msg);
+            chatInputText.value = "";
+        }
+
+        function addMessage(sender, text) {
+            const div = document.createElement('div');
+            div.className = `msg ${sender === "أنا" ? 'me' : ''}`;
+            div.innerText = `${sender}: ${text}`;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
 
     <script>
         const moviePlayer = document.getElementById('moviePlayer');
