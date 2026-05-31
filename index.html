@@ -1,40 +1,39 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8"><title>سينما ميني</title>
+    <meta charset="UTF-8"><title>سينما</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #121212; color: #fff; margin: 10px; display: flex; flex-direction: column; height: 95vh; }
-        .row { display: flex; gap: 10px; flex: 1; overflow: hidden; }
-        #moviePlayer { flex: 3; background: #000; border-radius: 8px; }
-        .sidebar { flex: 1; max-width: 260px; display: flex; flex-direction: column; gap: 10px; background: #1e1e1e; padding: 10px; border-radius: 8px; }
-        .cam { width: 100%; aspect-ratio: 1.3; background: #000; border-radius: 4px; object-fit: cover; }
-        #chat { flex: 1; overflow-y: auto; background: #2a2a2a; padding: 5px; border-radius: 4px; font-size: 13px; }
-        input, button { padding: 6px; border-radius: 4px; border: none; font-weight: bold; }
+        body { font-family: sans-serif; background: #121212; color: #fff; margin: 10px; }
+        .row { display: flex; gap: 10px; }
+        video { background: #000; border-radius: 5px; width: 100%; }
+        #moviePlayer { flex: 3; }
+        .sidebar { flex: 1; max-width: 220px; display: flex; flex-direction: column; gap: 5px; background: #1e1e1e; padding: 10px; border-radius: 5px; }
+        .cam { aspect-ratio: 1.3; object-fit: cover; }
+        #chat { height: 150px; overflow-y: auto; background: #2a2a2a; padding: 5px; font-size: 12px; }
+        input, button { padding: 5px; border-radius: 4px; border: none; font-weight: bold; }
         button { background: #00adb5; color: #fff; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center; font-size: 14px;">
+    <div style="margin-bottom: 10px; display: flex; gap: 10px; font-size: 13px;">
         <span>ID: <b id="my-id" style="color:#00adb5">...</b></span>
-        <input type="text" id="peer-id" placeholder="ID صديقك" style="width: 100px;">
+        <input type="text" id="peer-id" placeholder="ID صديقك" style="width: 80px;">
         <button onclick="connect()">اتصال</button>
-        <input type="file" id="upload" accept="video/*">
     </div>
 
     <div class="row">
-        <video id="moviePlayer" controls></video>
+        <video id="moviePlayer" controls>
+            <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
+        </video>
+        
         <div class="sidebar">
             <video id="localCam" class="cam" autoplay muted playsinline></video>
             <video id="remoteCam" class="cam" autoplay playsinline></video>
-            <div style="display: flex; gap: 5px; justify-content: center;">
-                <button onclick="startCall(true)">فيديو</button>
-                <button onclick="startCall(false)">صوت</button>
-                <button onclick="stopCall()" style="background:#ff4757">قطع</button>
-            </div>
+            <button onclick="startCall()">تشغيل الكاميرا</button>
             <div id="chat"></div>
-            <div style="display: flex; gap: 5px;">
+            <div style="display: flex; gap: 2px;">
                 <input type="text" id="msg" placeholder="شات..." style="flex:1">
                 <button onclick="sendMsg()">ارسل</button>
             </div>
@@ -47,33 +46,29 @@
 
         peer.on('open', id => document.getElementById('my-id').innerText = id);
         peer.on('connection', c => { conn = c; init(); });
-        peer.on('call', async call => { if(confirm("مكالمة؟")) { await getMedia(true); call.answer(stream); call.on('stream', r => document.getElementById('remoteCam').srcObject = r); }});
-
-        document.getElementById('upload').onchange = e => { if(e.target.files[0]) player.src = URL.createObjectURL(e.target.files[0]); };
+        peer.on('call', async call => { await getMedia(); call.answer(stream); call.on('stream', r => document.getElementById('remoteCam').srcObject = r); });
 
         function connect() { conn = peer.connect(document.getElementById('peer-id').value); init(); }
-        function init() { alert("متصل!"); if(player.src) conn.send({t:'NEED_FILE'}); conn.on('data', d => handleData(d)); }
+        function init() { alert("متصل!"); conn.on('data', d => handleData(d)); }
 
         player.onplay = () => !isSync && conn?.send({t:'PLAY'});
         player.onpause = () => !isSync && conn?.send({t:'PAUSE'});
         player.ontimeupdate = () => { if(!isSync) lastTime = player.currentTime; };
-        player.onseeking = () => { if(!isSync) { player.currentTime = lastTime; conn?.send({t:'SEEK', time: player.currentTime}); alert("تم إرسال طلب تعديل الوقت."); }};
+        player.onseeking = () => { if(!isSync) { player.currentTime = lastTime; conn?.send({t:'SEEK', time: player.currentTime}); }};
 
         function handleData(d) {
             isSync = true;
             if(d.t === 'PLAY') player.play();
             if(d.t === 'PAUSE') player.pause();
             if(d.t === 'MSG') chat.innerHTML += `<div><b>صديقك:</b> ${d.m}</div>`;
-            if(d.t === 'NEED_FILE') alert("اختار نفس الفيلم من جهازك الآن لتظهر المزامنة.");
-            if(d.t === 'SEEK' && confirm("موافقة على تغيير الوقت؟")) { player.currentTime = d.time; conn.send({t:'OK', time: d.time}); }
+            if(d.t === 'SEEK' && confirm("موافق على تغيير الوقت؟")) { player.currentTime = d.time; conn.send({t:'OK', time: d.time}); }
             if(d.t === 'OK') player.currentTime = d.time;
             setTimeout(() => isSync = false, 400);
         }
 
-        async function getMedia(vid) { try { stream = await navigator.mediaDevices.getUserMedia({video: vid, audio: true}); document.getElementById('localCam').srcObject = stream; } catch(e) { alert("إذن الكاميرا مطلوب"); } }
-        async function startCall(vid) { await getMedia(vid); const call = peer.call(conn.peer, stream); call.on('stream', r => document.getElementById('remoteCam').srcObject = r); }
-        function stopCall() { stream?.getTracks().forEach(t => t.stop()); document.getElementById('localCam').srcObject = document.getElementById('remoteCam').srcObject = null; }
-        function sendMsg() { const i = document.getElementById('msg'); if(!i.value || !conn) return; conn.send({t:'MSG', m: i.value}); chat.innerHTML += `<div><b>أنا:</b> ${i.value}</div>`; i.value = ''; chat.scrollTop = chat.scrollHeight; }
+        async function getMedia() { stream = await navigator.mediaDevices.getUserMedia({video: true, audio: true}); document.getElementById('localCam').srcObject = stream; }
+        async function startCall() { await getMedia(); const call = peer.call(conn.peer, stream); call.on('stream', r => document.getElementById('remoteCam').srcObject = r); }
+        function sendMsg() { const i = document.getElementById('msg'); if(!i.value || !conn) return; conn.send({t:'MSG', m: i.value}); chat.innerHTML += `<div><b>أنا:</b> ${i.value}</div>`; i.value = ''; }
     </script>
 </body>
 </html>
