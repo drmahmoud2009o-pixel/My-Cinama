@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سينما المزامنة والبث المباشر</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0b0c10;
+            color: #c5c6c7;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #66fcf1; margin-bottom: 10px; }
+        .setup-box {
+            background: #1f2833;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+            border: none;
+            font-size: 16px;
+        }
+        input { width: 60%; background: #2f3e46; color: #fff; text-align: center; }
+        button { background-color: #45f3ff; color: #0b0c10; font-weight: bold; cursor: pointer; }
+        button:hover { background-color: #1fbcda; }
+        .container {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            max-width: 1300px;
+            width: 100%;
+        }
+        .video-section {
+            flex: 3;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        video#moviePlayer {
+            width: 100%;
+            display: block;
+            aspect-ratio: 16/9;
+        }
+        .call-section {
+            flex: 1;
+            background: #1f2833;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .video-grid {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .video-box {
+            width: 100%;
+            background: #000;
+            border-radius: 6px;
+            aspect-ratio: 4/3;
+            object-fit: cover;
+        }
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>غرفة المشاهدة المشتركة (2K)</h1>
+
+    <div class="setup-box">
+        <p>معرّف الجلسة الخاص بك: <strong id="my-id" style="color:#45f3ff;">جاري التوليد...</strong></p>
+        <input type="text" id="peer-id-input" placeholder="أدخل معرّف الطرف الآخر هنا">
+        <button id="connect-btn">اتصال ومزامنة</button>
+        <button id="start-call-btn" style="background-color: #ff4757; color: white;">بدء مكالمة فيديو</button>
+    </div>
+
+    <div class="container">
+        <div class="video-section">
+            <video id="moviePlayer" controls controlsList="nodownload">
+                <source src="رابط_الفيلم_المباشر_هنا.mp4" type="video/mp4">
+                متصفحك لا يدعم تشغيل هذا الفيديو.
+            </video>
+        </div>
+
+        <div class="call-section">
+            <h3>البث المرئي والصوتي</h3>
+            <div class="video-grid">
+                <div><label>كاميرتك:</label><video id="localVideo" class="video-box" autoplay muted playsinline></video></div>
+                <div><label>الطرف الآخر:</label><video id="remoteVideo" class="video-box" autoplay playsinline></video></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const moviePlayer = document.getElementById('moviePlayer');
+        const connectBtn = document.getElementById('connect-btn');
+        const startCallBtn = document.getElementById('start-call-btn');
+        const peerIdInput = document.getElementById('peer-id-input');
+        const myIdDisplay = document.getElementById('my-id');
+        
+        let peer = new Peer(); // إنشاء اتصال جديد عبر سيرفر مجاني لـ PeerJS
+        let conn = null;
+        let localStream = null;
+        let lastApprovedTime = 0;
+        let isSyncing = false;
+
+        // توليد المعرف الخاص بك
+        peer.on('open', (id) => {
+            myIdDisplay.innerText = id;
+        });
+
+        // استقبال الاتصال للمزامنة والتحكم
+        peer.on('connection', (connection) => {
+            conn = connection;
+            setupConnection();
+        });
+
+        // استقبال مكالمة الفيديو
+        peer.on('call', async (call) => {
+            if(!localStream) await getMedia();
+            call.answer(localStream);
+            call.on('stream', (remoteStream) => {
+                document.getElementById('remoteVideo').srcObject = remoteStream;
+            });
+        });
+
+        // عند الضغط على زر الاتصال بالطرف الآخر
+        connectBtn.addEventListener('click', () => {
+            const peerId = peerIdInput.value;
+            if (peerId) {
+                conn = peer.connect(peerId);
+                setupConnection();
+            }
+        });
+
+        // تفعيل الكاميرا والصوت والاتصال هاتفياً
+        startCallBtn.addEventListener('click', async () => {
+            const peerId = peerIdInput.value;
+            if (!peerId) return alert("يرجى إدخال معرّف الطرف الآخر أولاً");
+            await getMedia();
+            const call = peer.call(peerId, localStream);
+            call.on('stream', (remoteStream) => {
+                document.getElementById('remoteVideo').srcObject = remoteStream;
+            });
+        });
+
+        async function getMedia() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+            } catch (err) {
+                alert("تعذر الوصول للكاميرا أو المايك: " + err);
+            }
+        }
+
+        function setupConnection() {
+            alert("تم الاتصال بنجاح! التحكم بالفيديو أصبح مشتركاً الآن.");
+            
+            // إرسال الأوامر (تشغيل، إيقاف، تغيير وقت)
+            moviePlayer.addEventListener('play', () => {
+                if (!isSyncing) conn.send({ type: 'PLAY' });
+            });
+            moviePlayer.addEventListener('pause', () => {
+                if (!isSyncing) conn.send({ type: 'PAUSE' });
+            });
+            
+            // قفل التقديم والإرجاع إلا بموافقة الطرف الآخر
+            moviePlayer.addEventListener('timeupdate', () => {
+                if (!isSyncing) {
+                    // حفظ آخر وقت طبيعي للفيديو
+                    if (Math.abs(moviePlayer.currentTime - lastApprovedTime) < 2) {
+                        lastApprovedTime = moviePlayer.currentTime;
+                    }
+                }
+            });
+
+            moviePlayer.addEventListener('seeking', () => {
+                if (!isSyncing && Math.abs(moviePlayer.currentTime - lastApprovedTime) > 2) {
+                    const targetTime = moviePlayer.currentTime;
+                    // إرجاع الفيديو فوراً للوقت السابق لحين الموافقة
+                    moviePlayer.currentTime = lastApprovedTime; 
+                    
+                    // إرسال طلب سماح للطرف الآخر
+                    conn.send({ type: 'REQUEST_SEEK', time: targetTime });
+                    alert("تم إرسال طلب للطرف الآخر لتقديم/إرجاع الفيلم، انتظر موافقته.");
+                }
+            });
+
+            // استقبال الأوامر من الطرف الآخر
+            conn.on('data', (data) => {
+                isSyncing = true;
+                if (data.type === 'PLAY') {
+                    moviePlayer.play();
+                } else if (data.type === 'PAUSE') {
+                    moviePlayer.pause();
+                } else if (data.type === 'REQUEST_SEEK') {
+                    let accept = confirm("الطرف الآخر يريد تغيير وقت الفيلم. هل توافق؟");
+                    if (accept) {
+                        conn.send({ type: 'APPROVE_SEEK', time: data.time });
+                        moviePlayer.currentTime = data.time;
+                        lastApprovedTime = data.time;
+                    }
+                } else if (data.type === 'APPROVE_SEEK') {
+                    moviePlayer.currentTime = data.time;
+                    lastApprovedTime = data.time;
+                    alert("وافق الطرف الآخر وتم تغيير الوقت.");
+                }
+                setTimeout(() => { isSyncing = false; }, 500);
+            });
+        }
+    </script>
+</body>
+</html>
