@@ -16,7 +16,7 @@
 </head>
 <body>
 
-    <div style="margin-bottom: 10px; display: flex; gap: 10px; font-size: 13px; align-items: center;">
+    <div style="margin-bottom: 10px; display: flex; gap: 10px; font-size: 13px; align-items: center; flex-wrap: wrap;">
         <span>ID: <b id="my-id" style="color:#00adb5">...</b></span>
         <input type="text" id="peer-id" placeholder="ID صديقك" style="width: 90px;">
         <button onclick="connect()">اتصال</button>
@@ -24,6 +24,7 @@
             <input type="file" id="upload" accept="video/*">
             <button onclick="startLiveStream()" style="background:#ff9f43">ابدأ البث لصديقك</button>
         </span>
+        <button onclick="makeFullscreen()" style="background:#20bf6b">تكبير الشاشة 📺</button>
     </div>
 
     <div class="row">
@@ -45,19 +46,15 @@
         let peer = new Peer(shortId), conn, liveStream;
 
         peer.on('open', id => document.getElementById('my-id').innerText = id);
-        
-        // استقبال الاتصال والشات
         peer.on('connection', c => { conn = c; init(); });
         
-        // استقبال البث التلقائي للفيلم (عند الضيف)
         peer.on('call', call => {
-            document.getElementById('host-controls').style.display = 'none'; // إخفاء أزرار الرفع عند الضيف
+            document.getElementById('host-controls').style.display = 'none'; 
             remoteVideo.style.display = 'block';
             call.answer();
             call.on('stream', r => remoteVideo.srcObject = r);
         });
 
-        // المضيف يختار الفيلم ويشغله عنده
         document.getElementById('upload').onchange = e => { 
             if(e.target.files[0]) {
                 player.src = URL.createObjectURL(e.target.files[0]); 
@@ -68,13 +65,22 @@
         function connect() { conn = peer.connect(document.getElementById('peer-id').value); init(); }
         function init() { alert("متصل!"); conn.on('data', d => { if(d.t === 'MSG') chat.innerHTML += `<div><b>صديقك:</b> ${d.m}</div>`; }); }
 
-        // المضيف يبدأ بث الفيلم المتشغل عنده للطرف الآخر تلقائياً
         function startLiveStream() {
             if (!player.src) return alert("اختر الفيلم أولاً");
-            // التقاط بث الفيديو والصوت من المشغل مباشرة
             liveStream = player.captureStream ? player.captureStream() : player.mozCaptureStream();
             peer.call(conn.peer, liveStream);
-            alert("تم بدء البث! الفيلم يظهر الآن عند صديقك تلقائياً.");
+            alert("تم بدء البث التلقائي بنجاح!");
+        }
+
+        // دالة تكبير الشاشة الذكية للطرفين
+        function makeFullscreen() {
+            // التحقق من الفيديو النشط (سواء كنت مضيف أو ضيف) وتكبيره
+            const activeVideo = player.style.display !== 'none' ? player : remoteVideo;
+            if (activeVideo.style.display === 'none') return alert("لا يوجد فيديو معروض لتكبيره حالياً");
+            
+            if (activeVideo.requestFullscreen) activeVideo.requestFullscreen();
+            else if (activeVideo.webkitRequestFullscreen) activeVideo.webkitRequestFullscreen();
+            else if (activeVideo.msRequestFullscreen) activeVideo.msRequestFullscreen();
         }
 
         function sendMsg() { const i = document.getElementById('msg'); if(!i.value || !conn) return; conn.send({t:'MSG', m: i.value}); chat.innerHTML += `<div><b>أنا:</b> ${i.value}</div>`; i.value = ''; }
