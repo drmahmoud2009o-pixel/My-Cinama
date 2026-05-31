@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8"><title>سينما</title>
+    <meta charset="UTF-8"><title>سينما لايت</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { font-family: sans-serif; background: #121212; color: #fff; margin: 10px; }
@@ -19,7 +19,7 @@
 
     <div style="margin-bottom: 10px; display: flex; gap: 10px; font-size: 13px;">
         <span>ID: <b id="my-id" style="color:#00adb5">...</b></span>
-        <input type="text" id="peer-id" placeholder="ID صديقك" style="width: 80px;">
+        <input type="text" id="peer-id" placeholder="ID صديقك" style="width: 90px;">
         <button onclick="connect()">اتصال</button>
     </div>
 
@@ -42,7 +42,9 @@
 
     <script>
         const player = document.getElementById('moviePlayer'), chat = document.getElementById('chat');
-        let peer = new Peer(), conn, stream, isSync = false, lastTime = 0;
+        // توليد معرف من 8 خانات عشوائية
+        const shortId = Math.random().toString(36).substring(2, 10);
+        let peer = new Peer(shortId), conn, stream, isSync = false, lastTime = 0;
 
         peer.on('open', id => document.getElementById('my-id').innerText = id);
         peer.on('connection', c => { conn = c; init(); });
