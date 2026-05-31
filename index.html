@@ -99,8 +99,8 @@
     <div class="container">
         <div class="video-section">
             <video id="moviePlayer" controls controlsList="nodownload">
-                <source src="https://drive.google.com/file/d/1FogQVZqujpP7c4sKd6A0FoZZXp2vkzDA/view?usp=drivesdk.mp4" type="video/mp4">
-                متصفحك لا يدعم تشغيل هذا الفيديو.
+                <source src="https://docs.google.com/uc?export=download&id=1FogQVZqujpP7c4sKd6A0FoZZXp2vkzDA" type="video/mp4">
+                متصفحك لا يدعم تشغيل هذا الفيديو أو الرابط يحتاج لصلاحية عامة.
             </video>
         </div>
 
@@ -120,24 +120,21 @@
         const peerIdInput = document.getElementById('peer-id-input');
         const myIdDisplay = document.getElementById('my-id');
         
-        let peer = new Peer(); // إنشاء اتصال جديد عبر سيرفر مجاني لـ PeerJS
+        let peer = new Peer(); 
         let conn = null;
         let localStream = null;
         let lastApprovedTime = 0;
         let isSyncing = false;
 
-        // توليد المعرف الخاص بك
         peer.on('open', (id) => {
             myIdDisplay.innerText = id;
         });
 
-        // استقبال الاتصال للمزامنة والتحكم
         peer.on('connection', (connection) => {
             conn = connection;
             setupConnection();
         });
 
-        // استقبال مكالمة الفيديو
         peer.on('call', async (call) => {
             if(!localStream) await getMedia();
             call.answer(localStream);
@@ -146,7 +143,6 @@
             });
         });
 
-        // عند الضغط على زر الاتصال بالطرف الآخر
         connectBtn.addEventListener('click', () => {
             const peerId = peerIdInput.value;
             if (peerId) {
@@ -155,7 +151,6 @@
             }
         });
 
-        // تفعيل الكاميرا والصوت والاتصال هاتفياً
         startCallBtn.addEventListener('click', async () => {
             const peerId = peerIdInput.value;
             if (!peerId) return alert("يرجى إدخال معرّف الطرف الآخر أولاً");
@@ -178,7 +173,6 @@
         function setupConnection() {
             alert("تم الاتصال بنجاح! التحكم بالفيديو أصبح مشتركاً الآن.");
             
-            // إرسال الأوامر (تشغيل، إيقاف، تغيير وقت)
             moviePlayer.addEventListener('play', () => {
                 if (!isSyncing) conn.send({ type: 'PLAY' });
             });
@@ -186,10 +180,8 @@
                 if (!isSyncing) conn.send({ type: 'PAUSE' });
             });
             
-            // قفل التقديم والإرجاع إلا بموافقة الطرف الآخر
             moviePlayer.addEventListener('timeupdate', () => {
                 if (!isSyncing) {
-                    // حفظ آخر وقت طبيعي للفيديو
                     if (Math.abs(moviePlayer.currentTime - lastApprovedTime) < 2) {
                         lastApprovedTime = moviePlayer.currentTime;
                     }
@@ -199,16 +191,13 @@
             moviePlayer.addEventListener('seeking', () => {
                 if (!isSyncing && Math.abs(moviePlayer.currentTime - lastApprovedTime) > 2) {
                     const targetTime = moviePlayer.currentTime;
-                    // إرجاع الفيديو فوراً للوقت السابق لحين الموافقة
                     moviePlayer.currentTime = lastApprovedTime; 
                     
-                    // إرسال طلب سماح للطرف الآخر
                     conn.send({ type: 'REQUEST_SEEK', time: targetTime });
                     alert("تم إرسال طلب للطرف الآخر لتقديم/إرجاع الفيلم، انتظر موافقته.");
                 }
             });
 
-            // استقبال الأوامر من الطرف الآخر
             conn.on('data', (data) => {
                 isSyncing = true;
                 if (data.type === 'PLAY') {
