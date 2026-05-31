@@ -2,312 +2,85 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>غرفة السينما المطورة</title>
+    <title>سينما لايت</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
-        :root { --main-bg: #0b0c10; --box-bg: #1f2833; --accent: #66fcf1; --text: #c5c6c7; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--main-bg); color: var(--text); margin: 0; padding: 10px; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        .header { display: flex; justify-content: space-between; align-items: center; background: var(--box-bg); padding: 10px 20px; border-radius: 10px; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
-        .header input, .header button { padding: 8px; border-radius: 5px; border: none; }
-        button { background: var(--accent); color: #000; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        button:hover { opacity: 0.8; }
-
-        .main-layout { display: flex; flex: 1; gap: 10px; overflow: hidden; }
-        
-        /* قسم الفيديو */
-        .video-container { flex: 3; background: #000; border-radius: 10px; position: relative; display: flex; flex-direction: column; justify-content: center; }
-        video#moviePlayer { width: 100%; max-height: 80vh; outline: none; }
-        .file-selector { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 10; background: rgba(31, 40, 51, 0.9); padding: 30px; border-radius: 15px; border: 2px dashed var(--accent); }
-
-        /* الجانب (شات ومكالمة) */
-        .sidebar { flex: 1; display: flex; flex-direction: column; gap: 10px; max-width: 350px; }
-        .call-box { background: var(--box-bg); padding: 10px; border-radius: 10px; display: flex; flex-direction: column; gap: 10px; }
-        .video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-        video.cam { width: 100%; background: #000; border-radius: 5px; aspect-ratio: 1; object-fit: cover; }
-        
-        .chat-box { flex: 1; background: var(--box-bg); border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; }
-        #chat-messages { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; font-size: 14px; }
-        .msg { padding: 5px 10px; border-radius: 5px; background: #2f3e46; width: fit-content; max-width: 80%; }
-        .msg.me { align-self: flex-end; background: var(--accent); color: #000; }
-        .chat-input { display: flex; padding: 5px; gap: 5px; background: #000; }
-        .chat-input input { flex: 1; background: #121212; color: #fff; border: 1px solid #333; padding: 8px; border-radius: 5px; }
-
-        .controls-row { display: flex; gap: 5px; justify-content: center; margin-top: 5px; }
-        .call-btn { font-size: 12px; padding: 5px; }
+        body { font-family: sans-serif; background: #121212; color: #fff; display: flex; flex-direction: column; height: 100vh; margin: 0; padding: 10px; box-sizing: border-box; }
+        .row { display: flex; gap: 10px; flex: 1; overflow: hidden; }
+        video { background: #000; border-radius: 8px; }
+        #moviePlayer { flex: 3; width: 100%; }
+        .sidebar { flex: 1; max-width: 300px; display: flex; flex-direction: column; gap: 10px; background: #1e1e1e; padding: 10px; border-radius: 8px; }
+        .cams { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .cam { width: 100%; aspect-ratio: 1; object-fit: cover; }
+        #chat { flex: 1; overflow-y: auto; background: #2a2a2a; padding: 5px; border-radius: 5px; font-size: 14px; }
+        input, button { padding: 8px; border-radius: 5px; border: none; font-weight: bold; }
+        button { background: #00adb5; color: #fff; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div>ID الخاص بك: <strong id="my-id" style="color: var(--accent);">جاري التحميل...</strong></div>
-        <div>
-            <input type="text" id="peer-id-input" placeholder="ادخل ID صديقك">
-            <button id="connect-btn">اتصال</button>
-        </div>
+    <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">
+        <span>ID الخاص بك: <b id="my-id" style="color:#00adb5">...</b></span>
+        <input type="text" id="peer-id" placeholder="ID صديقك">
+        <button onclick="connect()">اتصال</button>
+        <input type="file" id="upload" accept="video/*">
     </div>
 
-    <div class="main-layout">
-        <div class="video-container">
-            <div id="file-overlay" class="file-selector">
-                <h3>🎬 اختار الفيلم من جهازك</h3>
-                <p>يجب أن يختار صديقك "نفس الملف" تماماً</p>
-                <input type="file" id="video-upload" accept="video/*">
-            </div>
-            <video id="moviePlayer" controls></video>
-        </div>
-
+    <div class="row">
+        <video id="moviePlayer" controls></video>
+        
         <div class="sidebar">
-            <div class="call-box">
-                <div class="video-grid">
-                    <video id="localCam" class="cam" autoplay muted playsinline></video>
-                    <video id="remoteCam" class="cam" autoplay playsinline></video>
-                </div>
-                <div class="controls-row">
-                    <button class="call-btn" onclick="startCall(true)">فيديو + صوت</button>
-                    <button class="call-btn" onclick="startCall(false)">صوت فقط</button>
-                    <button class="call-btn" onclick="stopCall()" style="background: #ff4757;">إغلاق</button>
-                </div>
+            <div class="cams">
+                <video id="localCam" class="cam" autoplay muted playsinline></video>
+                <video id="remoteCam" class="cam" autoplay playsinline></video>
             </div>
-
-            <div class="chat-box">
-                <div id="chat-messages"></div>
-                <div class="chat-input">
-                    <input type="text" id="chat-input-text" placeholder="اكتب رسالة...">
-                    <button id="send-chat">إرسال</button>
-                </div>
+            <div style="display: flex; gap: 2px; justify-content: center;">
+                <button onclick="startCall(true)">فيديو</button>
+                <button onclick="startCall(false)">صوت</button>
+                <button onclick="stopCall()" style="background:#ff4757">قطع</button>
+            </div>
+            <div id="chat"></div>
+            <div style="display: flex; gap: 5px;">
+                <input type="text" id="msg" placeholder="اكتب هنا..." style="flex:1">
+                <button onclick="sendMsg()">إرسال</button>
             </div>
         </div>
     </div>
 
     <script>
-        const moviePlayer = document.getElementById('moviePlayer');
-        const videoUpload = document.getElementById('video-upload');
-        const fileOverlay = document.getElementById('file-overlay');
-        const chatMessages = document.getElementById('chat-messages');
-        const chatInputText = document.getElementById('chat-input-text');
-        
-        let peer = new Peer();
-        let conn = null;
-        let localStream = null;
-        let isSyncing = false;
-        let lastTime = 0;
-
-        // 1. اختيار الفيلم محلياً
-        videoUpload.addEventListener('change', function() {
-            const file = this.files[0];
-            if (file) {
-                const url = URL.createObjectURL(file);
-                moviePlayer.src = url;
-                fileOverlay.style.display = 'none';
-                addMessage("نظام", "تم تحميل الفيلم محلياً بنجاح.");
-            }
-        });
+        const player = document.getElementById('moviePlayer'), chat = document.getElementById('chat');
+        let peer = new Peer(), conn, stream, isSync = false, lastTime = 0;
 
         peer.on('open', id => document.getElementById('my-id').innerText = id);
+        peer.on('connection', c => { conn = c; init(); });
+        peer.on('call', async call => { if(confirm("مكالمة واردة، هل تقبل؟")) { await getMedia(true); call.answer(stream); call.on('stream', r => document.getElementById('remoteCam').srcObject = r); }});
 
-        // 2. معالجة الاتصال
-        document.getElementById('connect-btn').onclick = () => {
-            conn = peer.connect(document.getElementById('peer-id-input').value);
-            setupConnection();
-        };
+        document.getElementById('upload').onchange = e => { if(e.target.files[0]) player.src = URL.createObjectURL(e.target.files[0]); };
 
-        peer.on('connection', c => {
-            conn = c;
-            setupConnection();
-        });
+        function connect() { conn = peer.connect(document.getElementById('peer-id').value); init(); }
+        function init() { alert("تم الاتصال!"); conn.on('data', d => handleData(d)); }
 
-        function setupConnection() {
-            alert("تم الاتصال بنجاح!");
-            conn.on('data', data => handleData(data));
+        player.onplay = () => !isSync && conn?.send({t:'PLAY'});
+        player.onpause = () => !isSync && conn?.send({t:'PAUSE'});
+        player.ontimeupdate = () => { if(!isSync) lastTime = player.currentTime; };
+        player.onseeking = () => { if(!isSync) { player.currentTime = lastTime; conn?.send({t:'SEEK', time: player.currentTime}); alert("تم إرسال طلب تقديم/إرجاع، انتظر الموافقة."); }};
+
+        function handleData(d) {
+            isSync = true;
+            if(d.t === 'PLAY') player.play();
+            if(d.t === 'PAUSE') player.pause();
+            if(d.t === 'MSG') msgTxt(d.m, 'صديقك');
+            if(d.t === 'SEEK' && confirm("صديقك يريد تغيير الوقت، هل توافق؟")) { player.currentTime = d.time; conn.send({t:'OK', time: d.time}); }
+            if(d.t === 'OK') player.currentTime = d.time;
+            setTimeout(() => isSync = false, 400);
         }
 
-        // 3. المزامنة والتحكم
-        moviePlayer.onplay = () => { if(!isSyncing) conn?.send({type:'PLAY'}); };
-        moviePlayer.onpause = () => { if(!isSyncing) conn?.send({type:'PAUSE'}); };
-        
-        moviePlayer.onseeking = () => {
-            if(!isSyncing) {
-                const targetTime = moviePlayer.currentTime;
-                moviePlayer.currentTime = lastTime; // ارجاع مؤقت
-                conn?.send({type:'REQ_SEEK', time: targetTime});
-            }
-        };
+        async function getMedia(vid) { try { stream = await navigator.mediaDevices.getUserMedia({video: vid, audio: true}); document.getElementById('localCam').srcObject = stream; } catch(e) { alert("خطأ بالصوت/الكاميرا"); } }
+        async function startCall(vid) { await getMedia(vid); const call = peer.call(conn.peer, stream); call.on('stream', r => document.getElementById('remoteCam').srcObject = r); }
+        function stopCall() { stream?.getTracks().forEach(t => t.stop()); document.getElementById('localCam').srcObject = document.getElementById('remoteCam').srcObject = null; }
 
-        moviePlayer.ontimeupdate = () => {
-            if(!isSyncing) lastTime = moviePlayer.currentTime;
-        };
-
-        function handleData(data) {
-            isSyncing = true;
-            if(data.type === 'PLAY') moviePlayer.play();
-            if(data.type === 'PAUSE') moviePlayer.pause();
-            if(data.type === 'CHAT') addMessage("صديقك", data.msg);
-            if(data.type === 'REQ_SEEK') {
-                if(confirm("صديقك يريد تغيير الوقت، هل توافق؟")) {
-                    moviePlayer.currentTime = data.time;
-                    conn.send({type:'APPROVE_SEEK', time: data.time});
-                }
-            }
-            if(data.type === 'APPROVE_SEEK') moviePlayer.currentTime = data.time;
-            setTimeout(() => isSyncing = false, 500);
-        }
-
-        // 4. المكالمات (اختياري)
-        async function startCall(video) {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({video: video, audio: true});
-                document.getElementById('localCam').srcObject = localStream;
-                const call = peer.call(conn.peer, localStream);
-                call.on('stream', remoteStream => document.getElementById('remoteCam').srcObject = remoteStream);
-            } catch(e) { alert("تأكد من إذن الكاميرا/الصوت"); }
-        }
-
-        peer.on('call', async call => {
-            if(confirm("صديقك يريد بدء مكالمة، هل تقبل؟")) {
-                localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
-                document.getElementById('localCam').srcObject = localStream;
-                call.answer(localStream);
-                call.on('stream', remoteStream => document.getElementById('remoteCam').srcObject = remoteStream);
-            }
-        });
-
-        function stopCall() {
-            localStream?.getTracks().forEach(t => t.stop());
-            document.getElementById('localCam').srcObject = null;
-            document.getElementById('remoteCam').srcObject = null;
-        }
-
-        // 5. الشات
-        document.getElementById('send-chat').onclick = sendMsg;
-        chatInputText.onkeypress = (e) => { if(e.key === 'Enter') sendMsg(); };
-
-        function sendMsg() {
-            const msg = chatInputText.value;
-            if(!msg || !conn) return;
-            conn.send({type:'CHAT', msg: msg});
-            addMessage("أنا", msg);
-            chatInputText.value = "";
-        }
-
-        function addMessage(sender, text) {
-            const div = document.createElement('div');
-            div.className = `msg ${sender === "أنا" ? 'me' : ''}`;
-            div.innerText = `${sender}: ${text}`;
-            chatMessages.appendChild(div);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-    </script>
-</body>
-</html>
-
-    <script>
-        const moviePlayer = document.getElementById('moviePlayer');
-        const connectBtn = document.getElementById('connect-btn');
-        const startCallBtn = document.getElementById('start-call-btn');
-        const peerIdInput = document.getElementById('peer-id-input');
-        const myIdDisplay = document.getElementById('my-id');
-        
-        let peer = new Peer(); 
-        let conn = null;
-        let localStream = null;
-        let lastApprovedTime = 0;
-        let isSyncing = false;
-
-        peer.on('open', (id) => {
-            myIdDisplay.innerText = id;
-        });
-
-        peer.on('connection', (connection) => {
-            conn = connection;
-            setupConnection();
-        });
-
-        peer.on('call', async (call) => {
-            if(!localStream) await getMedia();
-            call.answer(localStream);
-            call.on('stream', (remoteStream) => {
-                document.getElementById('remoteVideo').srcObject = remoteStream;
-            });
-        });
-
-        connectBtn.addEventListener('click', () => {
-            const peerId = peerIdInput.value;
-            if (peerId) {
-                conn = peer.connect(peerId);
-                setupConnection();
-            }
-        });
-
-        startCallBtn.addEventListener('click', async () => {
-            const peerId = peerIdInput.value;
-            if (!peerId) return alert("يرجى إدخال معرّف الطرف الآخر أولاً");
-            await getMedia();
-            const call = peer.call(peerId, localStream);
-            call.on('stream', (remoteStream) => {
-                document.getElementById('remoteVideo').srcObject = remoteStream;
-            });
-        });
-
-        async function getMedia() {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('localVideo').srcObject = localStream;
-            } catch (err) {
-                alert("تعذر الوصول للكاميرا أو المايك: " + err);
-            }
-        }
-
-        function setupConnection() {
-            alert("تم الاتصال بنجاح! التحكم بالفيديو أصبح مشتركاً الآن.");
-            
-            moviePlayer.addEventListener('play', () => {
-                if (!isSyncing) conn.send({ type: 'PLAY' });
-            });
-            moviePlayer.addEventListener('pause', () => {
-                if (!isSyncing) conn.send({ type: 'PAUSE' });
-            });
-            
-            moviePlayer.addEventListener('timeupdate', () => {
-                if (!isSyncing) {
-                    if (Math.abs(moviePlayer.currentTime - lastApprovedTime) < 2) {
-                        lastApprovedTime = moviePlayer.currentTime;
-                    }
-                }
-            });
-
-            moviePlayer.addEventListener('seeking', () => {
-                if (!isSyncing && Math.abs(moviePlayer.currentTime - lastApprovedTime) > 2) {
-                    const targetTime = moviePlayer.currentTime;
-                    moviePlayer.currentTime = lastApprovedTime; 
-                    
-                    conn.send({ type: 'REQUEST_SEEK', time: targetTime });
-                    alert("تم إرسال طلب للطرف الآخر لتقديم/إرجاع الفيلم، انتظر موافقته.");
-                }
-            });
-
-            conn.on('data', (data) => {
-                isSyncing = true;
-                if (data.type === 'PLAY') {
-                    moviePlayer.play();
-                } else if (data.type === 'PAUSE') {
-                    moviePlayer.pause();
-                } else if (data.type === 'REQUEST_SEEK') {
-                    let accept = confirm("الطرف الآخر يريد تغيير وقت الفيلم. هل توافق؟");
-                    if (accept) {
-                        conn.send({ type: 'APPROVE_SEEK', time: data.time });
-                        moviePlayer.currentTime = data.time;
-                        lastApprovedTime = data.time;
-                    }
-                } else if (data.type === 'APPROVE_SEEK') {
-                    moviePlayer.currentTime = data.time;
-                    lastApprovedTime = data.time;
-                    alert("وافق الطرف الآخر وتم تغيير الوقت.");
-                }
-                setTimeout(() => { isSyncing = false; }, 500);
-            });
-        }
+        function sendMsg() { const i = document.getElementById('msg'); if(!i.value || !conn) return; conn.send({t:'MSG', m: i.value}); msgTxt(i.value, 'أنا'); i.value = ''; }
+        function msgTxt(m, s) { chat.innerHTML += `<div><b>${s}:</b> ${m}</div>`; chat.scrollTop = chat.scrollHeight; }
     </script>
 </body>
 </html>
