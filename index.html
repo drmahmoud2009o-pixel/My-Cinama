@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8"><title>سينما لايت 📺</title>
+    <meta charset="UTF-8"><title>سينا لايت 📺</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { font-family: sans-serif; background: #121212; color: #fff; margin: 10px; }
@@ -47,15 +47,25 @@
         peer.on('open', id => document.getElementById('my-id').innerText = id);
         peer.on('connection', c => { conn = c; init(); });
 
-        // تحميل الفيلم محلياً
         document.getElementById('upload').onchange = e => { if(e.target.files[0]) player.src = URL.createObjectURL(e.target.files[0]); };
 
-        // تحميل الترجمة محلياً وتحويلها لرابط مؤقت آمن
+        // دالة ذكية لقراءة وتحويل ملفات SRT أو VTT محلياً لتعمل فورا
         document.getElementById('subUpload').onchange = e => {
-            if(e.target.files[0]) {
-                track.src = URL.createObjectURL(e.target.files[0]);
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                let text = evt.target.result;
+                // إذا كان الملف SRT، نقوم بتحويله صيغة VTT مدعومة
+                if (file.name.endsWith('.srt')) {
+                    text = "WEBVTT\n\n" + text.replace(/,/g, '.');
+                }
+                const blob = new Blob([text], { type: 'text/vtt' });
+                track.src = URL.createObjectURL(blob);
                 player.textTracks[0].mode = 'showing';
-            }
+            };
+            reader.readAsText(file);
         };
 
         function connect() { conn = peer.connect(document.getElementById('peer-id').value); init(); }
@@ -71,9 +81,8 @@
             if(d.t === 'PLAY') player.play();
             if(d.t === 'PAUSE') player.pause();
             if(d.t === 'MSG') chat.innerHTML += `<div><b>صديقك:</b> ${d.m}</div>`;
-            if(d.t === 'NEED_FILE') alert("قم باختيار الفيلم والترجمة من جهازك الآن لتفعيل المزامنة.");
-            if(d.t === 'SEEK' && confirm("موافق على تغيير الوقت؟")) { player.currentTime = d.time; conn.send({t:'OK', time: d.time}); }
-            if(d.t === 'OK') player.currentTime = d.time;
+            if(d.t === 'NEED_FILE') alert("الرجاء اختيار ملف الفيلم والترجمة من جهازك الآن لتظهر الصورة.");
+            if(d.t === 'SEEK') { player.currentTime = d.time; }
             setTimeout(() => isSync = false, 400);
         }
 
