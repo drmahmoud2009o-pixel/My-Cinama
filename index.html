@@ -27,7 +27,7 @@
 
     <div class="row">
         <video id="moviePlayer" controls>
-            <track id="track" kind="subtitles" src="https://example.com/subtitle.vtt" srclang="ar" label="العربية" default>
+            <track id="track" kind="subtitles" src="sub.vtt" srclang="ar" label="العربية" default>
         </video>
         <div class="sidebar">
             <div id="chat"></div>
@@ -49,7 +49,6 @@
         document.getElementById('upload').onchange = e => { 
             if(e.target.files[0]) {
                 player.src = URL.createObjectURL(e.target.files[0]);
-                // تفعيل الترجمة التلقائية فور تشغيل الفيلم
                 player.onloadedmetadata = () => { player.textTracks[0].mode = 'showing'; };
             }
         };
