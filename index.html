@@ -22,12 +22,13 @@
         <input type="text" id="peer-id" placeholder="ID صديقك" style="width: 90px;">
         <button onclick="connect()">اتصال</button>
         <span>الفيلم:</span> <input type="file" id="upload" accept="video/*">
+        <span>الترجمة:</span> <input type="file" id="subUpload" accept=".vtt,.srt">
         <button onclick="makeFullscreen()" style="background:#20bf6b">تكبير 📺</button>
     </div>
 
     <div class="row">
         <video id="moviePlayer" controls>
-            <track id="track" kind="subtitles" src="sub.vtt" srclang="ar" label="العربية" default>
+            <track id="track" kind="subtitles" srclang="ar" label="العربية" default>
         </video>
         <div class="sidebar">
             <div id="chat"></div>
@@ -39,17 +40,21 @@
     </div>
 
     <script>
-        const player = document.getElementById('moviePlayer'), chat = document.getElementById('chat');
+        const player = document.getElementById('moviePlayer'), chat = document.getElementById('chat'), track = document.getElementById('track');
         const shortId = Math.random().toString(36).substring(2, 10);
         let peer = new Peer(shortId), conn, isSync = false, lastTime = 0;
 
         peer.on('open', id => document.getElementById('my-id').innerText = id);
         peer.on('connection', c => { conn = c; init(); });
 
-        document.getElementById('upload').onchange = e => { 
+        // تحميل الفيلم محلياً
+        document.getElementById('upload').onchange = e => { if(e.target.files[0]) player.src = URL.createObjectURL(e.target.files[0]); };
+
+        // تحميل الترجمة محلياً وتحويلها لرابط مؤقت آمن
+        document.getElementById('subUpload').onchange = e => {
             if(e.target.files[0]) {
-                player.src = URL.createObjectURL(e.target.files[0]);
-                player.onloadedmetadata = () => { player.textTracks[0].mode = 'showing'; };
+                track.src = URL.createObjectURL(e.target.files[0]);
+                player.textTracks[0].mode = 'showing';
             }
         };
 
@@ -66,7 +71,7 @@
             if(d.t === 'PLAY') player.play();
             if(d.t === 'PAUSE') player.pause();
             if(d.t === 'MSG') chat.innerHTML += `<div><b>صديقك:</b> ${d.m}</div>`;
-            if(d.t === 'NEED_FILE') alert("اختار نفس الفيلم من جهازك الآن لتظهر الترجمة التلقائية.");
+            if(d.t === 'NEED_FILE') alert("قم باختيار الفيلم والترجمة من جهازك الآن لتفعيل المزامنة.");
             if(d.t === 'SEEK' && confirm("موافق على تغيير الوقت؟")) { player.currentTime = d.time; conn.send({t:'OK', time: d.time}); }
             if(d.t === 'OK') player.currentTime = d.time;
             setTimeout(() => isSync = false, 400);
