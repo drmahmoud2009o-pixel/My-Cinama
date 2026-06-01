@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8"><title>سينا لايت 📺</title>
+    <meta charset="UTF-8"><title>بث السينما المباشر والترجمة</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { font-family: sans-serif; background: #121212; color: #fff; margin: 10px; }
         .row { display: flex; gap: 10px; }
         video { background: #000; border-radius: 5px; width: 100%; aspect-ratio: 16/9; }
-        ::webkit-media-text-track-display { font-size: 22px; background: rgba(0,0,0,0.8); }
-        #moviePlayer { flex: 3; }
+        #moviePlayer, #remoteStreamVideo { flex: 3; position: relative; }
+        .sub-overlay { position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #fff; padding: 5px 15px; font-size: 22px; border-radius: 5px; text-align: center; pointer-events: none; display: none; z-index: 10; width: 80%; }
         .sidebar { flex: 1; max-width: 220px; display: flex; flex-direction: column; gap: 5px; background: #1e1e1e; padding: 10px; border-radius: 5px; }
         #chat { height: 150px; overflow-y: auto; background: #2a2a2a; padding: 5px; font-size: 12px; }
         input, button { padding: 5px; border-radius: 4px; border: none; font-weight: bold; }
@@ -21,15 +21,25 @@
         <span>ID: <b id="my-id" style="color:#00adb5">...</b></span>
         <input type="text" id="peer-id" placeholder="ID صديقك" style="width: 90px;">
         <button onclick="connect()">اتصال</button>
-        <span>الفيلم:</span> <input type="file" id="upload" accept="video/*">
-        <span>الترجمة:</span> <input type="file" id="subUpload" accept=".vtt,.srt">
-        <button onclick="makeFullscreen()" style="background:#20bf6b">تكبير 📺</button>
+        <span id="host-controls">
+            <span>الفيلم:</span> <input type="file" id="upload" accept="video/*">
+            <span>الترجمة:</span> <input type="file" id="subUpload" accept=".vtt,.srt">
+            <button onclick="startLiveStream()" style="background:#ff9f43">ابدأ البث لصديقك</button>
+        </span>
+        <button onclick="makeFullscreen()" style="background:#20bf6b">تكبير الشاشة 📺</button>
     </div>
 
     <div class="row">
-        <video id="moviePlayer" controls>
-            <track id="track" kind="subtitles" srclang="ar" label="العربية" default>
-        </video>
+        <div id="playerContainer" style="display:none; flex:3; position:relative;">
+            <video id="moviePlayer" controls></video>
+            <div id="hostSub" class="sub-overlay"></div>
+        </div>
+        
+        <div id="remoteContainer" style="display:none; flex:3; position:relative;">
+            <video id="remoteStreamVideo" autoplay playsinline></video>
+            <div id="remoteSub" class="sub-overlay"></div>
+        </div>
+        
         <div class="sidebar">
             <div id="chat"></div>
             <div style="display: flex; gap: 2px;">
@@ -40,53 +50,105 @@
     </div>
 
     <script>
-        const player = document.getElementById('moviePlayer'), chat = document.getElementById('chat'), track = document.getElementById('track');
+        const player = document.getElementById('moviePlayer'), remoteVideo = document.getElementById('remoteStreamVideo'), chat = document.getElementById('chat');
+        const hostSub = document.getElementById('hostSub'), remoteSub = document.getElementById('remoteSub');
         const shortId = Math.random().toString(36).substring(2, 10);
-        let peer = new Peer(shortId), conn, isSync = false, lastTime = 0;
+        let peer = new Peer(shortId), conn, liveStream, subCues = [];
 
         peer.on('open', id => document.getElementById('my-id').innerText = id);
         peer.on('connection', c => { conn = c; init(); });
+        
+        peer.on('call', call => {
+            document.getElementById('host-controls').style.display = 'none'; 
+            document.getElementById('remoteContainer').style.display = 'block';
+            call.answer();
+            call.on('stream', r => remoteVideo.srcObject = r);
+        });
 
-        document.getElementById('upload').onchange = e => { if(e.target.files[0]) player.src = URL.createObjectURL(e.target.files[0]); };
+        document.getElementById('upload').onchange = e => { 
+            if(e.target.files[0]) {
+                player.src = URL.createObjectURL(e.target.files[0]); 
+                document.getElementById('playerContainer').style.display = 'block';
+            }
+        };
 
-        // دالة ذكية لقراءة وتحويل ملفات SRT أو VTT محلياً لتعمل فورا
+        // قراءة الترجمة وتجهيزها للبث الميزان
         document.getElementById('subUpload').onchange = e => {
             const file = e.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = function(evt) {
                 let text = evt.target.result;
-                // إذا كان الملف SRT، نقوم بتحويله صيغة VTT مدعومة
-                if (file.name.endsWith('.srt')) {
-                    text = "WEBVTT\n\n" + text.replace(/,/g, '.');
-                }
-                const blob = new Blob([text], { type: 'text/vtt' });
-                track.src = URL.createObjectURL(blob);
-                player.textTracks[0].mode = 'showing';
+                if (file.name.endsWith('.srt')) { text = "WEBVTT\n\n" + text.replace(/,/g, '.'); }
+                parseVTT(text);
             };
             reader.readAsText(file);
         };
 
-        function connect() { conn = peer.connect(document.getElementById('peer-id').value); init(); }
-        function init() { alert("تم الاتصال!"); if(player.src) conn.send({t:'NEED_FILE'}); conn.on('data', d => handleData(d)); }
-
-        player.onplay = () => !isSync && conn?.send({t:'PLAY'});
-        player.onpause = () => !isSync && conn?.send({t:'PAUSE'});
-        player.ontimeupdate = () => { if(!isSync) lastTime = player.currentTime; };
-        player.onseeking = () => { if(!isSync) { player.currentTime = lastTime; conn?.send({t:'SEEK', time: player.currentTime}); }};
-
-        function handleData(d) {
-            isSync = true;
-            if(d.t === 'PLAY') player.play();
-            if(d.t === 'PAUSE') player.pause();
-            if(d.t === 'MSG') chat.innerHTML += `<div><b>صديقك:</b> ${d.m}</div>`;
-            if(d.t === 'NEED_FILE') alert("الرجاء اختيار ملف الفيلم والترجمة من جهازك الآن لتظهر الصورة.");
-            if(d.t === 'SEEK') { player.currentTime = d.time; }
-            setTimeout(() => isSync = false, 400);
+        function parseVTT(text) {
+            subCues = [];
+            const blocks = text.split('\n\n');
+            blocks.forEach(block => {
+                const lines = block.split('\n');
+                if(lines.length >= 2 && lines[0].includes('-->')) {
+                    const times = lines[0].split('-->');
+                    const start = toSeconds(times[0].trim());
+                    const end = toSeconds(times[1].trim());
+                    const txt = lines.slice(1).join('\n');
+                    subCues.push({start, end, txt});
+                } else if(lines.length >= 3 && lines[1].includes('-->')) {
+                    const times = lines[1].split('-->');
+                    const start = toSeconds(times[0].trim());
+                    const end = toSeconds(times[1].trim());
+                    const txt = lines.slice(2).join('\n');
+                    subCues.push({start, end, txt});
+                }
+            });
         }
 
-        function makeFullscreen() { if (player.requestFullscreen) player.requestFullscreen(); else if (player.webkitRequestFullscreen) player.webkitRequestFullscreen(); }
+        function toSeconds(t) {
+            const p = t.split(':'); let s = 0;
+            if(p.length === 3) s = parseFloat(p[0])*3600 + parseFloat(p[1])*60 + parseFloat(p[2]);
+            else s = parseFloat(p[0])*60 + parseFloat(p[1]);
+            return s;
+        }
+
+        // تحديث الترجمة للمستضيف وبثها للضيف تلقائياً
+        player.ontimeupdate = () => {
+            const cur = player.currentTime;
+            const active = subCues.find(c => cur >= c.start && cur <= c.end);
+            const txt = active ? active.txt : '';
+            
+            if(txt) { hostSub.innerText = txt; hostSub.style.display = 'block'; } 
+            else { hostSub.style.display = 'none'; }
+            
+            conn?.send({t: 'SUB', txt: txt});
+        };
+
+        function connect() { conn = peer.connect(document.getElementById('peer-id').value); init(); }
+        function init() { alert("متصل!"); conn.on('data', d => handleData(d)); }
+
+        function handleData(d) {
+            if(d.t === 'MSG') chat.innerHTML += `<div><b>صديقك:</b> ${d.m}</div>`;
+            if(d.t === 'SUB') {
+                if(d.txt) { remoteSub.innerText = d.txt; remoteSub.style.display = 'block'; }
+                else { remoteSub.style.display = 'none'; }
+            }
+        }
+
+        function startLiveStream() {
+            if (!player.src) return alert("اختر الفيلم أولاً");
+            liveStream = player.captureStream ? player.captureStream() : player.mozCaptureStream();
+            peer.call(conn.peer, liveStream);
+            alert("تم بدء البث! الفيلم والترجمة يظهران الآن عند صديقك تلقائياً.");
+        }
+
+        function makeFullscreen() {
+            const container = player.style.display !== 'none' ? document.getElementById('playerContainer') : document.getElementById('remoteContainer');
+            if (container.requestFullscreen) container.requestFullscreen();
+            else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+        }
+
         function sendMsg() { const i = document.getElementById('msg'); if(!i.value || !conn) return; conn.send({t:'MSG', m: i.value}); chat.innerHTML += `<div><b>أنا:</b> ${i.value}</div>`; i.value = ''; }
     </script>
 </body>
